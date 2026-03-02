@@ -11,6 +11,5 @@ gatherUsageStats = false
 [deprecation]
 showfileUploaderEncoding = false
 
-# ↓ この一行を追加してください
 [language]
 locale = "ja"
