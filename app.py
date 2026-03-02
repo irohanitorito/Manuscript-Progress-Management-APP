@@ -61,7 +61,6 @@ def calculate_total_percent(w):
 if st.session_state.user_id is None:
     st.markdown('<div class="header-bar"><div class="header-title">進捗管理ログイン</div></div>', unsafe_allow_html=True)
     tab1, tab2, tab3 = st.tabs(["ログイン", "新規登録", "パスワード変更"])
-    
     with tab1:
         u = st.text_input("ユーザー名", key="l_u")
         p = st.text_input("パスワード", type='password', key="l_p")
@@ -72,7 +71,6 @@ if st.session_state.user_id is None:
                 st.session_state.user_id, st.session_state.username = data[0], u
                 st.rerun()
             else: st.error("ユーザー名かパスワードが違います")
-            
     with tab2:
         nu = st.text_input("希望のユーザー名", key="r_u")
         np = st.text_input("希望のパスワード", type='password', key="r_p")
@@ -82,7 +80,6 @@ if st.session_state.user_id is None:
                     c.execute('INSERT INTO users(username, password) VALUES (?,?)', (nu, make_hashes(np)))
                     conn.commit(); st.success("作成完了！ログインしてください")
                 except: st.error("そのユーザー名は既に使用されています")
-
     with tab3:
         cu = st.text_input("ユーザー名", key="c_u")
         cp = st.text_input("現在のパスワード", type='password', key="c_p")
@@ -111,11 +108,8 @@ if st.session_state.page == "list":
     st.markdown(f'<div class="big-datetime">{now_str}</div>', unsafe_allow_html=True)
     c.execute("SELECT * FROM works WHERE user_id = ?", (st.session_state.user_id,))
     works = c.fetchall()
-
-    # 原稿スケジュールがない場合の警告
     if len(works) == 0:
         st.markdown('<div class="warning-text">⚠️ 原稿スケジュールがありません。<br>右下の「＋」ボタンから追加してください。</div>', unsafe_allow_html=True)
-
     _, col_c, _ = st.columns([1, 2, 1])
     if col_c.button("今日の進捗", use_container_width=True, disabled=(len(works) == 0)):
         st.session_state.selected_title_for_daily = None; st.session_state.page = "daily"; st.rerun()
@@ -171,15 +165,26 @@ elif st.session_state.page == "daily":
         c.execute("SELECT * FROM works WHERE title=? AND user_id=?", (sel, st.session_state.user_id))
         work = c.fetchone()
         st.divider()
-        def p_row(label, cur, unit, key):
+        def p_row(label, cur, unit, key, max_limit):
             c1, c2, c3 = st.columns([2, 2, 2])
             with c1: st.write(label)
-            with c2: v = st.number_input(label, min_value=0, key=key, label_visibility="collapsed")
+            # 残り以上を入力できないように max_value を設定
+            can_add = max(0, max_limit - cur)
+            with c2: v = st.number_input(label, min_value=0, max_value=can_add, key=key, label_visibility="collapsed")
             with c3: st.write(f"昨日まで:{cur}{unit}")
             return v
-        p, n, l, t = p_row("プロット", work[7], "%", "dp"), p_row("ネーム", work[8], "P", "dn"), p_row("線画", work[10], "P", "dl"), p_row("トーン", work[11], "P", "dt")
+        p = p_row("プロット", work[7], "%", "dp", 100)
+        n = p_row("ネーム", work[8], "P", "dn", work[3])
+        l = p_row("線画", work[10], "P", "dl", work[3])
+        t = p_row("トーン", work[11], "P", "dt", work[3])
         if st.button("保存", use_container_width=True, type="primary"):
-            c.execute("UPDATE works SET plot_percent=plot_percent+?, name_pages=name_pages+?, line_pages=line_pages+?, tone_pages=tone_pages+? WHERE id=? AND user_id=?", (p, n, l, t, work[0], st.session_state.user_id))
+            # SQL側でもMIN関数を使用して上限を超えないようにロック
+            c.execute("""UPDATE works SET 
+                plot_percent = MIN(100, plot_percent + ?), 
+                name_pages = MIN(total_pages, name_pages + ?), 
+                line_pages = MIN(total_pages, line_pages + ?), 
+                tone_pages = MIN(total_pages, tone_pages + ?) 
+                WHERE id=? AND user_id=?""", (p, n, l, t, work[0], st.session_state.user_id))
             conn.commit(); st.session_state.page = "list"; st.rerun()
 
 # --- 4. 作品登録・編集画面 ---
@@ -190,23 +195,19 @@ elif st.session_state.page == "form":
         work_data = c.fetchone()
     else: 
         work_data = (None, st.session_state.user_id, "", 1, "", str(date.today()), str(date.today()))
-    
     st.markdown('<div class="back-btn-wrapper">', unsafe_allow_html=True)
     if st.button("◀", key="bf"): st.session_state.page = "list"; st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    
     t = st.text_input("作品名", value=work_data[2])
-    pg = st.number_input("総ページ数", min_value=0, max_value=1000, value=int(work_data[3]))
+    pg = st.number_input("総ページ数", min_value=1, max_value=1000, value=int(work_data[3]))
     ev = st.text_input("イベント名", value=work_data[4])
     ed = st.date_input("イベント日", value=date.fromisoformat(work_data[5]), format="YYYY/MM/DD")
     dd = st.date_input("締切日", value=date.fromisoformat(work_data[6]), format="YYYY/MM/DD")
-    
     st.markdown("<br>", unsafe_allow_html=True)
     if is_edit:
         if st.button("保存", use_container_width=True, type="primary"):
             c.execute("UPDATE works SET title=?, total_pages=?, event_name=?, event_date=?, deadline=? WHERE id=? AND user_id=?", (t, pg, ev, str(ed), str(dd), st.session_state.edit_id, st.session_state.user_id))
             conn.commit(); st.session_state.page = "list"; st.rerun()
-        
         st.divider()
         st.markdown('<div style="color:#FF4B4B; font-size:0.9rem;">⚠️ 注意: 削除すると元に戻せません</div>', unsafe_allow_html=True)
         confirm = st.checkbox("本当に削除しますか？")
