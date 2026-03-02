@@ -25,7 +25,7 @@ if "view_id" not in st.session_state: st.session_state.view_id = None
 if "selected_title_for_daily" not in st.session_state: st.session_state.selected_title_for_daily = None
 if "confirm_delete" not in st.session_state: st.session_state.confirm_delete = False
 
-# 3. カスタムCSS（スマホ・PC両対応レスポンシブ版）
+# 3. カスタムCSS（スマホ・PC両対応レスポンス版）
 st.markdown("""
 <style>
     /* 全体のフォントと色 */
@@ -40,7 +40,7 @@ st.markdown("""
     }
     .header-title { color: white; font-size: 1.1rem; font-weight: bold; }
 
-    /* メインの日付表示（画面幅に合わせて伸縮） */
+    /* メインの日付表示 */
     .big-datetime {
         text-align: center; 
         font-size: clamp(1.8rem, 8vw, 2.8rem); 
@@ -58,7 +58,7 @@ st.markdown("""
         border: 2px solid #C199E5 !important; color: #C199E5 !important; background-color: white !important;
     }
     
-    /* プラスボタン専用（ホーム画面） */
+    /* プラスボタン専用 */
     div.stButton > button[key="add_btn_ui"] {
         font-size: 24px !important; width: 45px !important; height: 45px !important;
     }
@@ -74,7 +74,7 @@ st.markdown("""
     }
     .progress-bar-fill { height: 100%; background-color: #C199E5; transition: width 0.3s ease; }
     
-    /* 【閲覧画面】各項目のフォントサイズ調整（レスポンシブ） */
+    /* 各項目のフォントサイズ調整 */
     .detail-label { 
         font-size: clamp(1.1rem, 5vw, 1.8rem); 
         color: #B282E6; font-weight: bold;
@@ -88,7 +88,6 @@ st.markdown("""
     /* 戻るボタンの位置調整 */
     .back-btn-wrapper { margin-top: -90px; margin-bottom: 40px; }
 
-    /* スマホ（幅640px以下）の時の微調整 */
     @media (max-width: 640px) {
         .detail-label { margin-bottom: -5px; }
         .detail-value { line-height: 1.1; }
@@ -191,8 +190,7 @@ elif st.session_state.page == "view":
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("今日の進捗を入力する", use_container_width=True, type="primary"):
         st.session_state.selected_title_for_daily = work[1]
-        st.session_state.page = "daily"
-        st.rerun()
+        st.session_state.page = "daily"; st.rerun()
 
 # =========================
 # 【今日の進捗入力画面】
@@ -264,8 +262,11 @@ elif st.session_state.page == "form":
     title = st.text_input("作品名", value=work_data[1])
     pages = st.number_input("総ページ数", 0, 1000, int(work_data[2]))
     event = st.text_input("イベント名", value=work_data[3])
-    e_date = st.date_input("イベント日", value=date.fromisoformat(work_data[4]))
-    d_date = st.date_input("締切日", value=date.fromisoformat(work_data[5]))
+    
+    # --- 【ここを修正：日本語形式に変更】 ---
+    e_date = st.date_input("イベント日", value=date.fromisoformat(work_data[4]), format="YYYY/MM/DD")
+    d_date = st.date_input("締切日", value=date.fromisoformat(work_data[5]), format="YYYY/MM/DD")
+    # ----------------------------------------
     
     st.markdown("<br>", unsafe_allow_html=True)
     if is_edit:
@@ -278,12 +279,12 @@ elif st.session_state.page == "form":
                     c.execute("UPDATE works SET title=?, total_pages=?, event_name=?, event_date=?, deadline=? WHERE id=?", (title, pages, event, str(e_date), str(d_date), st.session_state.edit_id))
                     conn.commit(); st.session_state.page = "list"; st.rerun()
         else:
-            st.error("この作品を削除しますか？")
+            st.error("この原稿を削除しますか？")
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("いいえ", use_container_width=True): st.session_state.confirm_delete = False; st.rerun()
             with c2:
-                if st.button("はい", use_container_width=True, type="primary"):
+                if st.button("削除する", use_container_width=True, type="primary"):
                     c.execute("DELETE FROM works WHERE id=?", (st.session_state.edit_id,)); conn.commit(); st.session_state.confirm_delete = False; st.session_state.page = "list"; st.rerun()
     else:
         if st.button("保存", use_container_width=True, type="primary"):
