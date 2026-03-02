@@ -4,3 +4,13 @@ backgroundColor="#f4f4f4"
 secondaryBackgroundColor="#efe4ff"
 textColor="#000000"
 font="sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[deprecation]
+showfileUploaderEncoding = false
+
+# ↓ この一行を追加してください
+[language]
+locale = "ja"
